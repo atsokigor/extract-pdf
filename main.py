@@ -4,20 +4,35 @@ from pathlib import Path
 from typing import Literal
 
 from fastapi import FastAPI, UploadFile, File, Header, HTTPException, Query
-from docling.document_converter import DocumentConverter
 
 API_KEY = os.getenv("API_KEY", "")
 MAX_FILE_MB = int(os.getenv("MAX_FILE_MB", "20"))
 
 app = FastAPI(title="PDF Extract API")
 
-# Mantém o converter carregado entre requisições
-converter = DocumentConverter()
+_converter = None
 
 
 def validate_api_key(x_api_key: str | None):
     if API_KEY and x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="API key inválida")
+
+
+def get_converter():
+    global _converter
+
+    if _converter is None:
+        # Importa e inicializa só no primeiro uso,
+        # não durante o boot do container.
+        from docling.document_converter import DocumentConverter
+        _converter = DocumentConverter()
+
+    return _converter
+
+
+@app.get("/")
+def root():
+    return {"ok": True}
 
 
 @app.get("/health")
@@ -52,6 +67,7 @@ async def extract_pdf(
         tmp_path = tmp.name
 
     try:
+        converter = get_converter()
         result = converter.convert(tmp_path)
         doc = result.document
 
@@ -64,15 +80,9 @@ async def extract_pdf(
         else:
             extracted = doc.export_to_dict()
 
-        try:
-            pages = doc.num_pages()
-        except Exception:
-            pages = None
-
         return {
             "filename": filename,
             "output": output,
-            "pages": pages,
             "content": extracted,
         }
 
