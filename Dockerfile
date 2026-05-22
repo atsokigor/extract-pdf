@@ -8,6 +8,7 @@ RUN apt-get update \
         libgl1 \
         libglib2.0-0 \
         libgomp1 \
+        curl \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -17,4 +18,4 @@ RUN pip install -r requirements.txt
 
 COPY main.py .
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1"]
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --workers 1"]
